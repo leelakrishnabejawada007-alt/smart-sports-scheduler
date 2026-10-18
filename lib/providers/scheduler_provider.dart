@@ -46,12 +46,14 @@ class SchedulerProvider extends ChangeNotifier {
   List<Booking> _adminBookings = [];
   List<AppUser> _users = [];
   bool _adminLoading = false;
+  DateTime? _adminUpdatedAt;
   String? _adminError;
 
   List<Facility> get facilities => _facilities;
   List<Booking> get adminBookings => _adminBookings;
   List<AppUser> get users => _users;
   bool get adminLoading => _adminLoading;
+  DateTime? get adminUpdatedAt => _adminUpdatedAt;
   String? get adminError => _adminError;
   bool get loading => _loading;
   String? get error => _error;
@@ -106,6 +108,7 @@ class SchedulerProvider extends ChangeNotifier {
     _profileId = '';
     _favorites.clear();
     _adminBookings = [];
+    _adminUpdatedAt = null;
     _users = [];
     _bookings = [];
     _facilities = [];
@@ -321,6 +324,7 @@ class SchedulerProvider extends ChangeNotifier {
 
   // ---- admin ----
   Future<void> loadAdmin() async {
+    if (_adminLoading) return; // a refresh is already running
     _adminLoading = true;
     _adminError = null;
     notifyListeners();
@@ -335,6 +339,7 @@ class SchedulerProvider extends ChangeNotifier {
       _users = r[1] as List<AppUser>;
       _facilities = r[2] as List<Facility>;
       _bookings = r[3] as List<Booking>;
+      _adminUpdatedAt = DateTime.now();
     } catch (e) {
       _adminError = e.toString().replaceFirst('Exception: ', '');
     }

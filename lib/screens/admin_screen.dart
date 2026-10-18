@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -30,12 +32,24 @@ class _AdminScreenState extends State<AdminScreen> {
   int _section = 0; // 0 bookings, 1 facilities, 2 users
   BookingStatus? _filter;
 
+  Timer? _timer;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.read<SchedulerProvider>().loadAdmin();
     });
+    // New registrations and booking requests show up without reloading the page.
+    _timer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted) context.read<SchedulerProvider>().loadAdmin();
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
   }
 
   String _clean(Object e) => e.toString().replaceFirst('Exception: ', '');
@@ -132,15 +146,26 @@ class _AdminScreenState extends State<AdminScreen> {
             else ...[
               _stats(p),
               const SizedBox(height: 24),
-              Wrap(spacing: 10, runSpacing: 10, children: [
-                for (final e in const ['Bookings', 'Facilities', 'Users']
-                    .asMap()
-                    .entries)
-                  FilterPill(
-                      label: e.value,
-                      selected: _section == e.key,
-                      onTap: () => setState(() => _section = e.key)),
-              ]),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Wrap(spacing: 10, runSpacing: 10, children: [
+                      for (final e
+                          in const ['Bookings', 'Facilities', 'Users'].asMap().entries)
+                        FilterPill(
+                            label: e.value,
+                            selected: _section == e.key,
+                            onTap: () {
+                              setState(() => _section = e.key);
+                              p.loadAdmin();
+                            }),
+                    ]),
+                  ),
+                  const SizedBox(width: 12),
+                  _refreshButton(p),
+                ],
+              ),
               const SizedBox(height: 20),
               if (p.adminLoading && p.adminBookings.isEmpty && p.users.isEmpty)
                 const Padding(
@@ -161,6 +186,35 @@ class _AdminScreenState extends State<AdminScreen> {
   }
 
   // ---------------------------------------------------------------- stats
+  String _two(int n) => n.toString().padLeft(2, '0');
+
+  Widget _refreshButton(SchedulerProvider p) {
+    final t = p.adminUpdatedAt;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(minimumSize: const Size(0, 42)),
+          onPressed: p.adminLoading ? null : p.loadAdmin,
+          icon: p.adminLoading
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.refresh, size: 18),
+          label: const Text('Refresh'),
+        ),
+        if (t != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text('Updated ${_two(t.hour)}:${_two(t.minute)}:${_two(t.second)}',
+                style: const TextStyle(fontSize: 11, color: AppColors.muted)),
+          ),
+      ],
+    );
+  }
+
   Widget _stats(SchedulerProvider p) {
     final pending =
         p.adminBookings.where((b) => b.status == BookingStatus.pending).length;
@@ -414,7 +468,7 @@ class _AdminScreenState extends State<AdminScreen> {
       ];
     }
     return [
-      for (final u in p.users)
+      for (final u in p.users.reversed) // newest registrations first
         Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: SurfaceCard(
